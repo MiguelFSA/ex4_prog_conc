@@ -58,17 +58,17 @@ class MyCallable implements Callable<Long> {
   }
 }
 
-//classe do método main
+// classe do método main
 public class FutureHello  {
   private static final int N = 3;
   private static final int NTHREADS = 10;
 
   public static void main(String[] args) {
 
-    //cria um pool de threads (NTHREADS)
+    // cria um pool de threads (NTHREADS)
     ExecutorService executor = Executors.newFixedThreadPool(NTHREADS);
 
-    //cria uma lista para armazenar referencias de chamadas assincronas
+    // cria uma lista para armazenar referencias de chamadas assincronas
     List<Future<Long>> list = new ArrayList<Future<Long>>();
 
     for (int i = 0; i < N; i++) {
