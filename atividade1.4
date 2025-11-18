@@ -1,1 +1,148 @@
+/* Disciplina: Programacao Concorrente */
+/* Prof.: Silvana Rossetto */
+/* Laboratório: 11 */
+/* Codigo: Criando um pool de threads em Java */
 
+import java.util.LinkedList;
+
+//-------------------------------------------------------------------------------
+// Classe FilaTarefas
+// Essa classe cria uma fila de tarefas para uma pool de threads
+// Variaveis: Número fixo de threads, a pool de threads, uma lista ligada que é a fila de tarefas e um booleano para shutdown
+// Metodos: construtor que cria a fila, define o shutdown como falso e cria nThreads threads e agrupa-as na pool.
+//          execute que, se shutdown for false, adiciona tarefas na fila e dá sinal para que uma thread acorde
+//          shutdown que encerra qualquer nova tarefa ao setar a variavel shutdown para true e da sinal para todas as threads para terminarem as tarefas que já haviam iniciado
+// Possui uma classe interna que representa as threads e tem método run que:
+// Se a fila estiver vazia e shutdown for falso, ou seja, não é hora de encerrar mas não há tarefas na fila, entra em espera. 
+// Se shutdown for verdadeiro e a fila estiver vazia, encerra. 
+// Se nenhum dos dois casos, ou seja, há algo na fila, executa a próxima tarefa da fila.
+// As areas do código que manipulam a fila e a variável shutdown estão cobertas por sincronização para evitar problemas classicos da concorrencia
+class FilaTarefas {
+    private final int nThreads;
+    private final MyPoolThreads[] threads;
+    private final LinkedList<Runnable> queue;
+    private boolean shutdown;
+
+    // método construtor
+    public FilaTarefas(int nThreads) {
+        this.nThreads = nThreads;
+        queue = new LinkedList<>();
+        threads = new MyPoolThreads[nThreads];
+        shutdown = false;
+
+        // cria as threads
+        for (int i = 0; i < nThreads; i++) {
+            threads[i] = new MyPoolThreads();
+            threads[i].start();
+        }
+    }
+
+    // Envia tarefa para a fila
+    public synchronized void execute(Runnable r) {
+        if (shutdown) return; // envia apenas se shutdown for falso
+        queue.addLast(r);
+        notify();
+    }
+
+    // Função que encerra a execução, impedindo novas adições a fila e acordando todas as threads para terminarem as tarefas restantes nesse ponto
+    public synchronized void shutdown() {
+        shutdown = true;
+        notifyAll();
+    }
+
+    // Classe que representa as threads
+    private class MyPoolThreads extends Thread {
+        public void run() {
+            Runnable r;
+
+            // Loop while para checar sempre
+            while (true) { 
+                synchronized (FilaTarefas.this) {
+                    while (queue.isEmpty() && !shutdown) {
+                        try {
+                            FilaTarefas.this.wait(); // Se coloca em espera
+                        } catch (InterruptedException ignored) {}
+                    }
+
+                    if (shutdown && queue.isEmpty()) {
+                        return; // termina a thread
+                    }
+
+                    r = queue.removeFirst(); // remove a tarefa que realizará da fila
+                }
+
+                try {
+                    r.run();
+                } catch (RuntimeException e) {
+                    System.out.println("Erro na execução da tarefa: " + e.getMessage());
+                }
+            }
+        }
+    }
+}
+
+// Classe exemplo anterior, não será executada
+class Hello implements Runnable {
+    String msg;
+
+    public Hello(String m) {
+        msg = m;
+    }
+
+    public void run() {
+        System.out.println(msg);
+    }
+}
+
+// Classe que representa o que será executado pelas threads
+class Primo implements Runnable {
+    long n; 
+
+    // construtor apenas recebe o número a ser checado
+    Primo(long n) {
+        this.n = n;
+    }
+
+    // verifica se o valor dado é primo
+    private boolean ehPrimo(long n) {
+        if (n <= 1) return false; // Se é menor ou igual a 1, não é primo
+        if (n == 2) return true; // Se é 2, é primo
+        if (n % 2 == 0) return false; // Se é par, não é primo
+
+        long limite = (long) Math.sqrt(n) + 1; // valor "teto" para os testes, calculado antes para otimizar
+        // Se limite fosse calculado no for, seria calculado toda iteração
+        // Para cada ímpar a partir do 3
+        for (long i = 3; i < limite; i += 2) {
+            if (n % i == 0) return false; // Se o número é divisível pelo ímpar, não é primo
+        }
+        return true; // se sair do loop, é primo 
+    }
+
+    // método que executa o anterior e imprime o resultado
+    public void run() {
+        boolean p = ehPrimo(n);
+        System.out.println("Número " + n + " é primo? " + p);
+    }
+}
+
+// Classe principal do código
+public class MyPool {
+    public static void main(String[] args) {
+        final int NTHREADS = 10;
+
+        // cria o pool de threads
+        FilaTarefas pool = new FilaTarefas(NTHREADS);
+
+        // envia tarefas para o pool
+        for (int i = 0; i < 100; i++) {
+            // Runnable hello = new Hello(m);
+            // pool.execute(hello);
+            Runnable primo = new Primo(i);
+            pool.execute(primo);
+        }
+
+        // encerra o pool
+        pool.shutdown();
+        System.out.println("Terminou");
+    }
+}
