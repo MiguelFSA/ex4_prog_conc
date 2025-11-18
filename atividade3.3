@@ -1,1 +1,121 @@
+/* Disciplina: Programacao Concorrente */
+/* Prof.: Silvana Rossetto */
+/* Laboratório: 11 */
+/* Codigo: Exemplo de uso de futures */
+/* -------------------------------------------------------------------*/
+
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import java.util.ArrayList;
+import java.util.List;
+
+
+// Classe callable que verifica se um dado número é primo, muito semelhante ao exercicio 1
+class PrimoCallable implements Callable<Long> {
+  private final long n;
+
+  PrimoCallable(long n) {
+    this.n = n;
+  }
+
+  private boolean ehPrimo(long n) {
+    if (n <= 1) return false;
+    if (n == 2) return true;
+    if (n % 2 == 0) return false;
+
+    long limite = (long) Math.sqrt(n) + 1;
+    for (long i = 3; i < limite; i += 2) {
+      if (n % i == 0) return false;
+    }
+    return true;
+  }
+
+  @Override
+  public Long call() throws Exception {
+    boolean p = ehPrimo(n);
+    // System.out.println( + n + " é primo? " + p);  // remove o print de cada primo pois queremos N de dimensões muito grandes
+    return p ? 1L : 0L; // Agora sim, usado para somar a quantidade final de primos
+  }
+}
+
+
+// Classe original, não será usada
+class MyCallable implements Callable<Long> {
+  MyCallable() {}
+ 
+  public Long call() throws Exception {
+    long s = 0;
+    for (long i=1; i<=100; i++) {
+      s++;
+    }
+    return s;
+  }
+}
+
+
+// classe do método main
+public class FutureHello  {
+
+  private static final long N = 100000;     // define o fim do intervalo
+  private static final int NTHREADS = 10;   // pool de threads
+
+  public static void main(String[] args) {
+
+    // cria um pool de threads (NTHREADS)
+    ExecutorService executor = Executors.newFixedThreadPool(NTHREADS);
+
+    // cria uma lista para armazenar referencias de chamadas assincronas
+    List<Future<Long>> list = new ArrayList<Future<Long>>();
+
+   // cria o tamanho do bloco
+    long bloco = N / NTHREADS; 
+
+    for (int i = 0; i < NTHREADS; i++) {
+
+      long inicio = i * bloco + 1; // define onde a thread começa a trabalhar
+      long fim = (i == NTHREADS - 1 ? N : (i + 1) * bloco); // define o fim e, se for a última thread, pega todos os restantes
+
+      // Cria uma tarefa para contar todos os primos do intervalo 
+      Callable<Long> primosBloco = new Callable<Long>() {
+        @Override
+        public Long call() throws Exception {
+          long contador = 0;
+          for (long x = inicio; x <= fim; x++) {
+            // testamos se é primo com o método já criado
+            PrimoCallable p = new PrimoCallable(x);
+            contador += p.call();  // retorna 1 se primo, 0 se não
+          }
+          return contador;
+        }
+      };
+
+      Future<Long> futuro = executor.submit(primosBloco);
+      list.add(futuro);
+    }
+
+    System.out.println(list.size());
+
+    // Recebe o resultado de cada tarefa e imprime a quantidade total de primos
+    long totalPrimos = 0;
+
+    for (Future<Long> future : list) {
+      try {
+        totalPrimos += future.get(); //bloqueia até a computação terminar
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      } catch (ExecutionException e) {
+        e.printStackTrace();
+      }
+    }
+
+    // Imprime o número de primos entre 1 e N
+    System.out.println("Existem " + totalPrimos + " primos entre 1 e " +N);
+
+    executor.shutdown();
+  }
+}
 
